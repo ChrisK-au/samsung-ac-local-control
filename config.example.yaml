@@ -1,0 +1,17 @@
+# Samsung AC Local WiFi Control - Example Configuration
+#
+# Copy this file to config.yaml and edit it for your local network.
+
+# AC WiFi adapter IP address. Leave empty to use discovery from the web UI.
+ac_host: ""
+
+# AC communication port. Older Samsung WiFi adapters commonly use 2878.
+ac_port: 2878
+
+# Authentication token from pairing. Run pair.py if your adapter requires pairing.
+token: ""
+
+# Web server settings.
+web_host: "0.0.0.0"
+web_port: 8080
+

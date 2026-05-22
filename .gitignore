@@ -1,0 +1,10 @@
+config.yaml
+schedules.yaml
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+Prompt.txt
+samsung_ac/certs/

@@ -1,0 +1,402 @@
+/* Samsung AC Control - Mobile-first responsive design */
+
+:root {
+    --bg: #1a1a2e;
+    --panel-bg: #16213e;
+    --accent: #0f3460;
+    --highlight: #e94560;
+    --text: #eee;
+    --text-dim: #8892a4;
+    --cool: #4fc3f7;
+    --heat: #ff7043;
+    --success: #66bb6a;
+    --radius: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-bottom: 32px;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0 16px;
+}
+
+header h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transition: background 0.3s;
+}
+
+.status-dot.connected {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+}
+
+.status-dot.disconnected {
+    background: var(--highlight);
+    box-shadow: 0 0 8px var(--highlight);
+}
+
+/* Panels */
+.panel {
+    background: var(--panel-bg);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.panel h2 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.panel h3 {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+/* Status display */
+.status-panel {
+    text-align: center;
+    padding: 24px 16px;
+}
+
+.sensor-title {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.temp-display .current-temp {
+    font-size: 3.5rem;
+    font-weight: 300;
+    line-height: 1;
+}
+
+.temp-display .current-temp .unit {
+    font-size: 1.5rem;
+    vertical-align: super;
+    color: var(--text-dim);
+}
+
+.current-label {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.error-display {
+    color: var(--highlight);
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+/* Power button */
+.power-panel {
+    text-align: center;
+    padding: 12px;
+}
+
+.power-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.3s;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.power-btn.off {
+    border-color: #555;
+    color: #888;
+}
+
+.power-btn.on {
+    border-color: var(--success);
+    color: var(--success);
+    box-shadow: 0 0 20px rgba(102, 187, 106, 0.3);
+}
+
+.power-btn:active {
+    transform: scale(0.95);
+}
+
+/* Temperature control */
+.temp-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+}
+
+.temp-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.temp-btn:active {
+    background: var(--accent);
+    transform: scale(0.9);
+}
+
+.target-temp {
+    font-size: 2.5rem;
+    font-weight: 300;
+    min-width: 80px;
+    text-align: center;
+}
+
+.target-temp .unit {
+    font-size: 1rem;
+    vertical-align: super;
+    color: var(--text-dim);
+}
+
+/* Button groups (mode, fan, swing) */
+.btn-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-group button {
+    flex: 1;
+    min-width: 60px;
+    padding: 10px 6px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-group button.active {
+    background: var(--accent);
+    color: var(--text);
+    border-color: var(--cool);
+    font-weight: 600;
+}
+
+.btn-group button:active {
+    transform: scale(0.95);
+}
+
+/* Timer */
+.timer-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.timer-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.timer-row label {
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.timer-row select {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.timer-remaining {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    line-height: 1.2;
+    margin-top: -4px;
+    padding-left: 96px;
+}
+
+/* Schedules */
+.schedule-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--accent);
+}
+
+.schedule-item:last-child {
+    border-bottom: none;
+}
+
+.sched-info {
+    font-size: 0.9rem;
+    text-transform: capitalize;
+}
+
+.sched-delete {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--highlight);
+    background: transparent;
+    color: var(--highlight);
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.no-schedules {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 8px;
+}
+
+.schedule-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.schedule-add select,
+.schedule-add input[type="time"] {
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.schedule-add span {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+.schedule-add button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--cool);
+    background: transparent;
+    color: var(--cool);
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+/* Setup panel */
+#setup-panel p {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+#setup-panel button,
+#btn-discover {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: 1px solid var(--cool);
+    background: var(--accent);
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+    width: 100%;
+}
+
+#btn-discover:disabled {
+    opacity: 0.5;
+}
+
+.discover-result {
+    margin: 6px 0 !important;
+    background: var(--bg) !important;
+    border-color: var(--success) !important;
+}
+
+.manual-connect {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.manual-connect input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.manual-connect button {
+    padding: 10px 20px;
+    width: auto;
+}
+
+/* Utilities */
+button {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+@media (min-width: 480px) {
+    #app {
+        padding: 24px;
+    }
+}

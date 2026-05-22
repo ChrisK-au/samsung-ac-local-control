@@ -1,0 +1,15 @@
+[Unit]
+Description=Samsung AC Local WiFi Control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/opt/samsung-ac
+ExecStart=/opt/samsung-ac/.venv/bin/python -m samsung_ac
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

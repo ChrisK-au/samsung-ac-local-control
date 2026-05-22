@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Samsung AC Control</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <h1>Samsung AC</h1>
+            <div id="connection-status" class="status-dot disconnected" title="Disconnected"></div>
+        </header>
+
+        <!-- Setup panel (shown when not connected) -->
+        <div id="setup-panel" class="panel" style="display:none;">
+            <h2>Setup</h2>
+            <p>No AC unit configured. Scan your network to find it.</p>
+            <button onclick="discover()" id="btn-discover">Scan Network</button>
+            <div id="discover-results"></div>
+            <div class="manual-connect">
+                <input type="text" id="manual-ip" placeholder="Or enter IP address...">
+                <button onclick="connectManual()">Connect</button>
+            </div>
+        </div>
+
+        <!-- Main control panel -->
+        <div id="control-panel" style="display:none;">
+            <!-- Current status -->
+            <div class="panel status-panel">
+                <div class="sensor-title">Room temperature</div>
+                <div class="temp-display">
+                    <div class="current-temp">
+                        <span id="current-temp">--</span><span class="unit">&deg;C</span>
+                    </div>
+                    <div class="current-label">Sensed by A/C</div>
+                </div>
+                <div class="error-display" id="error-display" style="display:none;">
+                    <span id="error-code"></span>
+                </div>
+            </div>
+
+            <!-- Power button -->
+            <div class="panel power-panel">
+                <button id="btn-power" class="power-btn off" onclick="togglePower()">
+                    <svg viewBox="0 0 24 24" width="32" height="32">
+                        <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
+                    </svg>
+                    <span id="power-label">OFF</span>
+                </button>
+            </div>
+
+            <!-- Temperature control -->
+            <div class="panel temp-panel">
+                <h3>Temperature</h3>
+                <div class="temp-control">
+                    <button class="temp-btn" onclick="setTemp(-1)">-</button>
+                    <div class="target-temp">
+                        <span id="target-temp">24</span><span class="unit">&deg;C</span>
+                    </div>
+                    <button class="temp-btn" onclick="setTemp(1)">+</button>
+                </div>
+            </div>
+
+            <!-- Mode selector -->
+            <div class="panel mode-panel">
+                <h3>Mode</h3>
+                <div class="btn-group" id="mode-buttons">
+                    <button data-mode="Auto" onclick="setMode('Auto')">Auto</button>
+                    <button data-mode="Cool" onclick="setMode('Cool')">Cool</button>
+                    <button data-mode="Heat" onclick="setMode('Heat')">Heat</button>
+                    <button data-mode="Dry" onclick="setMode('Dry')">Dry</button>
+                    <button data-mode="Wind" onclick="setMode('Wind')">Fan</button>
+                </div>
+            </div>
+
+            <!-- Fan speed -->
+            <div class="panel fan-panel">
+                <h3>Fan Speed</h3>
+                <div class="btn-group" id="fan-buttons">
+                    <button data-speed="Auto" onclick="setFan('Auto')">Auto</button>
+                    <button data-speed="Low" onclick="setFan('Low')">Low</button>
+                    <button data-speed="Mid" onclick="setFan('Mid')">Mid</button>
+                    <button data-speed="High" onclick="setFan('High')">High</button>
+                </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="panel timer-panel">
+                <h3>Timer</h3>
+                <div class="timer-controls">
+                    <div class="timer-row">
+                        <label>Turn on in:</label>
+                        <select id="on-timer" onchange="setTimer('on')">
+                            <option value="0">Disabled</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hour</option>
+                            <option value="90">1.5 hours</option>
+                            <option value="120">2 hours</option>
+                            <option value="180">3 hours</option>
+                            <option value="240">4 hours</option>
+                            <option value="360">6 hours</option>
+                            <option value="480">8 hours</option>
+                        </select>
+                    </div>
+                    <div class="timer-remaining" id="on-timer-remaining">On timer: disabled</div>
+                    <div class="timer-row">
+                        <label>Turn off in:</label>
+                        <select id="off-timer" onchange="setTimer('off')">
+                            <option value="0">Disabled</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hour</option>
+                            <option value="90">1.5 hours</option>
+                            <option value="120">2 hours</option>
+                            <option value="180">3 hours</option>
+                            <option value="240">4 hours</option>
+                            <option value="360">6 hours</option>
+                            <option value="480">8 hours</option>
+                        </select>
+                    </div>
+                    <div class="timer-remaining" id="off-timer-remaining">Off timer: disabled</div>
+                </div>
+            </div>
+
+            <!-- Schedules -->
+            <div class="panel schedule-panel">
+                <h3>Schedules</h3>
+                <div id="schedule-list"></div>
+                <div class="schedule-add">
+                    <select id="sched-action">
+                        <option value="power_off">Turn Off</option>
+                        <option value="power_on">Turn On</option>
+                    </select>
+                    <span>at</span>
+                    <input type="time" id="sched-time" value="02:00">
+                    <select id="sched-days">
+                        <option value="daily">Daily</option>
+                        <option value="weekdays">Weekdays</option>
+                        <option value="weekends">Weekends</option>
+                    </select>
+                    <button onclick="addSchedule()">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const API = '';
+    let currentStatus = {};
+    let pollInterval = null;
+
+    // --- API helpers ---
+    async function api(path, method='GET', body=null) {
+        const opts = { method, headers: {'Content-Type': 'application/json'} };
+        if (body) opts.body = JSON.stringify(body);
+        try {
+            const resp = await fetch(API + path, opts);
+            return await resp.json();
+        } catch (e) {
+            console.error('API error:', e);
+            return { error: e.message };
+        }
+    }
+
+    // --- Status polling ---
+    async function pollStatus() {
+        const data = await api('/api/status');
+        if (data.error && !data.connected) {
+            showSetup();
+            return;
+        }
+        if (!data.connected) {
+            showSetup();
+            return;
+        }
+        currentStatus = data;
+        updateUI(data);
+        showControl();
+    }
+
+    function updateUI(s) {
+        // Connection
+        const dot = document.getElementById('connection-status');
+        dot.className = 'status-dot ' + (s.connected ? 'connected' : 'disconnected');
+        dot.title = s.connected ? 'Connected' : 'Disconnected';
+
+        // Power
+        const powerBtn = document.getElementById('btn-power');
+        const powerLabel = document.getElementById('power-label');
+        if (s.power === 'On') {
+            powerBtn.className = 'power-btn on';
+            powerLabel.textContent = 'ON';
+        } else {
+            powerBtn.className = 'power-btn off';
+            powerLabel.textContent = 'OFF';
+        }
+
+        // Temperature
+        document.getElementById('current-temp').textContent = s.current_temp || '--';
+        document.getElementById('target-temp').textContent = s.target_temp || 24;
+
+        // Mode buttons
+        document.querySelectorAll('#mode-buttons button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === s.mode);
+        });
+
+        // Fan buttons
+        document.querySelectorAll('#fan-buttons button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.speed === s.fan_speed);
+        });
+
+        updateTimerSelect('on', s.on_timer);
+        updateTimerSelect('off', s.off_timer);
+        updateTimerRemaining('on', s.on_timer);
+        updateTimerRemaining('off', s.off_timer);
+
+        // Error
+        const errorDiv = document.getElementById('error-display');
+        if (s.error && s.error !== 0) {
+            errorDiv.style.display = 'block';
+            document.getElementById('error-code').textContent = 'Error: ' + s.error;
+        } else {
+            errorDiv.style.display = 'none';
+        }
+    }
+
+    function updateTimerSelect(type, minutes) {
+        const sel = document.getElementById(type + '-timer');
+        if (!sel || minutes === undefined || minutes === null) return;
+        const value = String(minutes);
+        if ([...sel.options].some(opt => opt.value === value)) {
+            sel.value = value;
+        }
+    }
+
+    function updateTimerRemaining(type, minutes) {
+        const el = document.getElementById(type + '-timer-remaining');
+        if (!el || minutes === undefined || minutes === null) return;
+
+        const label = type === 'on' ? 'On timer' : 'Off timer';
+        const value = parseInt(minutes, 10);
+        if (!value) {
+            el.textContent = label + ': disabled';
+            return;
+        }
+
+        const unit = value === 1 ? 'minute' : 'minutes';
+        el.textContent = label + ': ' + value + ' ' + unit + ' remaining';
+    }
+
+    function showSetup() {
+        document.getElementById('setup-panel').style.display = '';
+        document.getElementById('control-panel').style.display = 'none';
+    }
+
+    function showControl() {
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('control-panel').style.display = '';
+    }
+
+    // --- Control actions ---
+    async function togglePower() {
+        const on = currentStatus.power !== 'On';
+        await api('/api/power', 'POST', { on });
+        setTimeout(pollStatus, 1000);
+    }
+
+    async function setTemp(delta) {
+        const current = currentStatus.target_temp || 24;
+        const temp = Math.max(16, Math.min(30, current + delta));
+        document.getElementById('target-temp').textContent = temp;
+        await api('/api/temperature', 'POST', { temp });
+        setTimeout(pollStatus, 1000);
+    }
+
+    async function setMode(mode) {
+        document.querySelectorAll('#mode-buttons button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        await api('/api/mode', 'POST', { mode });
+        setTimeout(pollStatus, 1000);
+    }
+
+    async function setFan(speed) {
+        document.querySelectorAll('#fan-buttons button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.speed === speed);
+        });
+        await api('/api/fan', 'POST', { speed });
+        setTimeout(pollStatus, 1000);
+    }
+
+    async function setTimer(type) {
+        const sel = document.getElementById(type + '-timer');
+        const minutes = parseInt(sel.value);
+        const result = await api('/api/timer', 'POST', { type, minutes });
+        if (result.ok) {
+            updateTimerRemaining(type, minutes);
+        }
+    }
+
+    // --- Discovery ---
+    async function discover() {
+        const btn = document.getElementById('btn-discover');
+        btn.textContent = 'Scanning...';
+        btn.disabled = true;
+        const data = await api('/api/discover', 'POST', {});
+        btn.textContent = 'Scan Network';
+        btn.disabled = false;
+
+        const results = document.getElementById('discover-results');
+        if (data.devices && data.devices.length > 0) {
+            results.innerHTML = '<p>Found devices:</p>' +
+                data.devices.map(ip =>
+                    `<button class="discover-result" onclick="connectTo('${ip}')">${ip}</button>`
+                ).join('');
+        } else {
+            results.innerHTML = '<p>No devices found on ' + (data.network || 'local network') +
+                '. Make sure the AC WiFi adapter is powered on and connected to your network.</p>';
+        }
+    }
+
+    async function connectTo(ip) {
+        const data = await api('/api/connect', 'POST', { host: ip });
+        if (data.ok) {
+            setTimeout(pollStatus, 2000);
+        } else {
+            alert('Could not connect to ' + ip);
+        }
+    }
+
+    function connectManual() {
+        const ip = document.getElementById('manual-ip').value.trim();
+        if (ip) connectTo(ip);
+    }
+
+    // --- Schedules ---
+    async function loadSchedules() {
+        const data = await api('/api/schedule');
+        if (data.error) return;
+        const list = document.getElementById('schedule-list');
+        if (!data.schedules || data.schedules.length === 0) {
+            list.innerHTML = '<p class="no-schedules">No schedules set</p>';
+            return;
+        }
+        list.innerHTML = data.schedules.map(s =>
+            `<div class="schedule-item">
+                <span class="sched-info">${s.action.replace('_', ' ')} at ${s.time} (${s.days})</span>
+                <button class="sched-delete" onclick="removeSchedule('${s.id}')">x</button>
+            </div>`
+        ).join('');
+    }
+
+    async function addSchedule() {
+        const action = document.getElementById('sched-action').value;
+        const timeParts = document.getElementById('sched-time').value.split(':');
+        const days = document.getElementById('sched-days').value;
+        await api('/api/schedule', 'POST', {
+            action,
+            hour: parseInt(timeParts[0]),
+            minute: parseInt(timeParts[1]),
+            days,
+        });
+        loadSchedules();
+    }
+
+    async function removeSchedule(id) {
+        await api('/api/schedule/' + id, 'DELETE');
+        loadSchedules();
+    }
+
+    // --- Init ---
+    async function init() {
+        await pollStatus();
+        loadSchedules();
+        // Poll every 10 seconds
+        pollInterval = setInterval(pollStatus, 10000);
+        // Refresh schedules every 30 seconds
+        setInterval(loadSchedules, 30000);
+    }
+
+    init();
+    </script>
+</body>
+</html>
