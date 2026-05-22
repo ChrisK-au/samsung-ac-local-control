@@ -106,3 +106,7 @@ sudo systemctl start samsung-ac
 
 The original Samsung APK and any proprietary Samsung app assets are not included. This
 project implements the local TLS/XML protocol directly.
+
+## License
+
+MIT License. See `LICENSE`.
