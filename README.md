@@ -6,6 +6,8 @@ adapters whose original Android app is no longer supported on newer devices.
 
 This project is unofficial and is not affiliated with Samsung.
 
+![Samsung AC Local WiFi Control mobile UI](docs/screenshot.png)
+
 ## Features
 
 - Power on/off, mode (Auto/Cool/Heat/Dry/Fan), temperature, fan speed, swing direction
