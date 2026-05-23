@@ -301,6 +301,12 @@ class ACScheduler:
         try:
             if action == "power_on":
                 self.ac.set_power(True)
+                mode = params.get("mode")
+                if mode:
+                    self.ac.set_mode(mode)
+                temp = params.get("temp")
+                if temp and mode != "Wind":
+                    self.ac.set_temperature(int(temp))
             elif action == "power_off":
                 self.ac.set_power(False)
             elif action == "set_temp":

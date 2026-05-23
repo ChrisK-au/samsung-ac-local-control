@@ -23,6 +23,11 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - App-side schedules persist across service/app restarts in `schedules.yaml`.
 - App-side one-shot on/off timers persist while pending.
 - One pending on-timer and one pending off-timer can run at the same time.
+- The app remembers the last connected AC IP and can reconnect automatically or via
+  the setup screen after startup/network interruptions.
+- Power-on schedules can optionally set operation mode and target temperature.
+- Fan-mode power-on schedules hide/ignore temperature because setpoint is not relevant.
+- A faint UI build stamp helps confirm which version is deployed.
 - Missed schedule/timer events are intentionally not replayed after reboot or downtime.
 
 ## Hardware Notes

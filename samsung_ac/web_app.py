@@ -28,6 +28,9 @@ ac: SamsungACProtocol = None
 scheduler: ACScheduler = None
 config: dict = {}
 schedule_path: Path = None
+config_file_path: Path = None
+last_reconnect_attempt = 0
+RECONNECT_RETRY_SECONDS = 30
 
 
 def get_config_path(config_path: str = None) -> Path:
@@ -84,25 +87,29 @@ def _status_with_app_timers() -> dict:
 
 def init_app(cfg: dict = None, config_path: str = None):
     """Initialize the AC connection and scheduler."""
-    global ac, scheduler, config, schedule_path
+    global ac, scheduler, config, schedule_path, config_file_path
 
     if cfg:
         config = cfg
     else:
         config = load_config(config_path)
 
+    config_file_path = get_config_path(config_path)
     schedule_path = get_schedule_path(config_path)
 
-    if config.get("ac_host"):
+    if config.get("ac_host") or config.get("last_ac_host"):
+        host = config.get("ac_host") or config.get("last_ac_host")
         ac = SamsungACProtocol(
-            host=config["ac_host"],
+            host=host,
             port=config.get("ac_port", 2878),
             token=config.get("token", ""),
         )
         if ac.connect():
-            logger.info(f"Connected to AC at {config['ac_host']}")
+            config["ac_host"] = host
+            config["last_ac_host"] = host
+            logger.info(f"Connected to AC at {host}")
         else:
-            logger.warning(f"Could not connect to AC at {config['ac_host']}")
+            logger.warning(f"Could not connect to AC at {host}")
     else:
         logger.info("No AC host configured - use /api/discover or set ac_host in config.yaml")
         ac = None
@@ -111,6 +118,66 @@ def init_app(cfg: dict = None, config_path: str = None):
         scheduler = ACScheduler(ac, schedule_path=schedule_path)
     else:
         scheduler = None
+
+
+def _remember_host(host: str):
+    """Persist the active and last-used AC host."""
+    if not host:
+        return
+    config["ac_host"] = host
+    config["last_ac_host"] = host
+    save_config(config, config_file_path)
+
+
+def _configured_host() -> str:
+    """Return the active host, falling back to the last successful host."""
+    return config.get("ac_host") or config.get("last_ac_host") or ""
+
+
+def _connect_to_host(host: str) -> bool:
+    """Connect to a host and start the scheduler if successful."""
+    global ac, scheduler
+    if not host:
+        return False
+
+    if ac:
+        ac.disconnect()
+
+    candidate = SamsungACProtocol(
+        host=host,
+        port=config.get("ac_port", 2878),
+        token=config.get("token", ""),
+    )
+    ok = candidate.connect()
+    ac = candidate
+    if ok:
+        _remember_host(host)
+        if scheduler:
+            scheduler.shutdown()
+        scheduler = ACScheduler(ac, schedule_path=schedule_path)
+        # Wait a moment for device discovery
+        time.sleep(2)
+    elif scheduler:
+        scheduler.shutdown()
+        scheduler = None
+    return ok
+
+
+def _maybe_reconnect():
+    """Try reconnecting to the configured host after boot/network interruptions."""
+    global last_reconnect_attempt
+    host = _configured_host()
+    if not host:
+        return
+    if ac and ac.connected:
+        return
+
+    now = time.time()
+    if now - last_reconnect_attempt < RECONNECT_RETRY_SECONDS:
+        return
+    last_reconnect_attempt = now
+    logger.info(f"Trying to reconnect to AC at {host}")
+    _connect_to_host(host)
 
 
 # --- Web UI routes ---
@@ -124,9 +191,16 @@ def index():
 
 @app.route("/api/status")
 def api_status():
+    _maybe_reconnect()
     if ac is None:
-        return jsonify({"error": "AC not connected", "connected": False})
-    return jsonify(_status_with_app_timers())
+        return jsonify({
+            "error": "AC not connected",
+            "connected": False,
+            "configured_host": _configured_host(),
+        })
+    status = _status_with_app_timers()
+    status["configured_host"] = _configured_host()
+    return jsonify(status)
 
 
 @app.route("/api/power", methods=["POST"])
@@ -232,27 +306,22 @@ def api_discover():
 @app.route("/api/connect", methods=["POST"])
 def api_connect():
     """Connect to a specific AC unit."""
-    global ac, scheduler, config, schedule_path
     data = request.json or {}
     host = data.get("host", "")
     if not host:
         return jsonify({"error": "No host specified"}), 400
 
-    config["ac_host"] = host
-    save_config(config)
+    ok = _connect_to_host(host)
+    return jsonify({"ok": ok, "host": host})
 
-    ac = SamsungACProtocol(
-        host=host,
-        port=config.get("ac_port", 2878),
-        token=config.get("token", ""),
-    )
-    ok = ac.connect()
-    if ok:
-        if scheduler:
-            scheduler.shutdown()
-        scheduler = ACScheduler(ac, schedule_path=schedule_path)
-        # Wait a moment for device discovery
-        time.sleep(2)
+
+@app.route("/api/reconnect", methods=["POST"])
+def api_reconnect():
+    """Reconnect to the active or last-used AC unit."""
+    host = _configured_host()
+    if not host:
+        return jsonify({"error": "No previous AC host saved"}), 400
+    ok = _connect_to_host(host)
     return jsonify({"ok": ok, "host": host})
 
 

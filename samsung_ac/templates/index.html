@@ -20,6 +20,7 @@
         <div id="setup-panel" class="panel" style="display:none;">
             <h2>Setup</h2>
             <p>No AC unit configured. Scan your network to find it.</p>
+            <button onclick="reconnectLast()" id="btn-reconnect-last" style="display:none;"></button>
             <button onclick="discover()" id="btn-discover">Scan Network</button>
             <div id="discover-results"></div>
             <div class="manual-connect">
@@ -131,7 +132,7 @@
                 <h3>Schedules</h3>
                 <div id="schedule-list"></div>
                 <div class="schedule-add">
-                    <select id="sched-action">
+                    <select id="sched-action" onchange="updateScheduleOptions()">
                         <option value="power_off">Turn Off</option>
                         <option value="power_on">Turn On</option>
                     </select>
@@ -142,16 +143,47 @@
                         <option value="weekdays">Weekdays</option>
                         <option value="weekends">Weekends</option>
                     </select>
+                    <div class="schedule-on-options" id="schedule-on-options">
+                        <select id="sched-mode" onchange="updateScheduleTempOption()">
+                            <option value="">Keep mode</option>
+                            <option value="Auto">Auto</option>
+                            <option value="Cool">Cool</option>
+                            <option value="Heat">Heat</option>
+                            <option value="Dry">Dry</option>
+                            <option value="Wind">Fan</option>
+                        </select>
+                        <select id="sched-temp">
+                            <option value="">Keep temp</option>
+                            <option value="16">16&deg;C</option>
+                            <option value="17">17&deg;C</option>
+                            <option value="18">18&deg;C</option>
+                            <option value="19">19&deg;C</option>
+                            <option value="20">20&deg;C</option>
+                            <option value="21">21&deg;C</option>
+                            <option value="22">22&deg;C</option>
+                            <option value="23">23&deg;C</option>
+                            <option value="24">24&deg;C</option>
+                            <option value="25">25&deg;C</option>
+                            <option value="26">26&deg;C</option>
+                            <option value="27">27&deg;C</option>
+                            <option value="28">28&deg;C</option>
+                            <option value="29">29&deg;C</option>
+                            <option value="30">30&deg;C</option>
+                        </select>
+                    </div>
                     <button onclick="addSchedule()">Add</button>
                 </div>
             </div>
         </div>
+        <!-- Bump this build stamp for each deployable UI/backend change. -->
+        <footer class="app-version">Build 2026.05.23.3</footer>
     </div>
 
     <script>
     const API = '';
     let currentStatus = {};
     let pollInterval = null;
+    let configuredHost = '';
 
     // --- API helpers ---
     async function api(path, method='GET', body=null) {
@@ -169,6 +201,8 @@
     // --- Status polling ---
     async function pollStatus() {
         const data = await api('/api/status');
+        configuredHost = data.configured_host || configuredHost || '';
+        updateReconnectButton();
         if (data.error && !data.connected) {
             showSetup();
             return;
@@ -255,6 +289,7 @@
     function showSetup() {
         document.getElementById('setup-panel').style.display = '';
         document.getElementById('control-panel').style.display = 'none';
+        updateReconnectButton();
     }
 
     function showControl() {
@@ -332,6 +367,32 @@
         }
     }
 
+    async function reconnectLast() {
+        const btn = document.getElementById('btn-reconnect-last');
+        btn.textContent = 'Reconnecting...';
+        btn.disabled = true;
+        const data = await api('/api/reconnect', 'POST', {});
+        btn.disabled = false;
+        if (data.ok) {
+            configuredHost = data.host || configuredHost;
+            setTimeout(pollStatus, 1000);
+        } else {
+            btn.textContent = configuredHost ? 'Reconnect to ' + configuredHost : 'Reconnect to last AC';
+            alert(data.error || 'Could not reconnect');
+        }
+    }
+
+    function updateReconnectButton() {
+        const btn = document.getElementById('btn-reconnect-last');
+        if (!btn) return;
+        if (configuredHost) {
+            btn.style.display = '';
+            btn.textContent = 'Reconnect to ' + configuredHost;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
     function connectManual() {
         const ip = document.getElementById('manual-ip').value.trim();
         if (ip) connectTo(ip);
@@ -348,21 +409,40 @@
         }
         list.innerHTML = data.schedules.map(s =>
             `<div class="schedule-item">
-                <span class="sched-info">${s.action.replace('_', ' ')} at ${s.time} (${s.days})</span>
+                <span class="sched-info">${formatSchedule(s)}</span>
                 <button class="sched-delete" onclick="removeSchedule('${s.id}')">x</button>
             </div>`
         ).join('');
+    }
+
+    function formatSchedule(s) {
+        let text = s.action.replace('_', ' ') + ' at ' + s.time + ' (' + s.days + ')';
+        if (s.action === 'power_on' && s.params) {
+            const extras = [];
+            if (s.params.mode) extras.push(s.params.mode === 'Wind' ? 'Fan' : s.params.mode);
+            if (s.params.temp) extras.push(s.params.temp + '\u00b0C');
+            if (extras.length) text += ' - ' + extras.join(', ');
+        }
+        return text;
     }
 
     async function addSchedule() {
         const action = document.getElementById('sched-action').value;
         const timeParts = document.getElementById('sched-time').value.split(':');
         const days = document.getElementById('sched-days').value;
+        const params = {};
+        if (action === 'power_on') {
+            const mode = document.getElementById('sched-mode').value;
+            const temp = document.getElementById('sched-temp').value;
+            if (mode) params.mode = mode;
+            if (temp && mode !== 'Wind') params.temp = parseInt(temp, 10);
+        }
         await api('/api/schedule', 'POST', {
             action,
             hour: parseInt(timeParts[0]),
             minute: parseInt(timeParts[1]),
             days,
+            params,
         });
         loadSchedules();
     }
@@ -374,12 +454,33 @@
 
     // --- Init ---
     async function init() {
+        document.getElementById('sched-action').addEventListener('change', updateScheduleOptions);
+        document.getElementById('sched-mode').addEventListener('change', updateScheduleTempOption);
+        updateScheduleOptions();
+        updateScheduleTempOption();
         await pollStatus();
         loadSchedules();
         // Poll every 10 seconds
         pollInterval = setInterval(pollStatus, 10000);
         // Refresh schedules every 30 seconds
         setInterval(loadSchedules, 30000);
+    }
+
+    function updateScheduleOptions() {
+        const action = document.getElementById('sched-action').value;
+        document.getElementById('schedule-on-options').classList.toggle(
+            'is-hidden',
+            action !== 'power_on'
+        );
+        updateScheduleTempOption();
+    }
+
+    function updateScheduleTempOption() {
+        const tempSelect = document.getElementById('sched-temp');
+        const isFanOnly = document.getElementById('sched-mode').value === 'Wind';
+        tempSelect.classList.toggle('is-hidden', isFanOnly);
+        tempSelect.disabled = isFanOnly;
+        if (isFanOnly) tempSelect.value = '';
     }
 
     init();

@@ -5,6 +5,10 @@
 # AC WiFi adapter IP address. Leave empty to use discovery from the web UI.
 ac_host: ""
 
+# Last successfully connected AC IP address. The app manages this automatically and
+# can use it for reconnecting after a reboot or network interruption.
+last_ac_host: ""
+
 # AC communication port. Older Samsung WiFi adapters commonly use 2878.
 ac_port: 2878
 
@@ -14,4 +18,3 @@ token: ""
 # Web server settings.
 web_host: "0.0.0.0"
 web_port: 8080
-

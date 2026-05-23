@@ -12,8 +12,12 @@ This project is unofficial and is not affiliated with Samsung.
 
 - Power on/off, mode (Auto/Cool/Heat/Dry/Fan), temperature, fan speed, swing direction
 - App-side one-shot timers (turn on/off in N minutes)
-- App-side scheduling (e.g. "turn off at 2am on weeknights")
+- App-side scheduling (e.g. "turn off at 2am on weeknights", or turn on with
+  a chosen mode and temperature)
 - App-side schedules persist across app/server restarts via `schedules.yaml`
+- Reconnects to the saved AC IP after service restarts/network interruptions, with
+  a manual "Reconnect to last IP" option in the setup screen
+- Faint build stamp in the UI so deployed updates can be confirmed at a glance
 - Network discovery to find your AC automatically
 - Mobile-friendly responsive UI - works great on phones
 - No cloud, no login, no internet required - 100% local
@@ -45,6 +49,7 @@ Copy `config.example.yaml` to `config.yaml`, then edit it:
 
 ```yaml
 ac_host: "192.168.1.xxx"  # Your AC WiFi adapter's IP
+last_ac_host: ""           # Managed automatically after successful connection
 ac_port: 2878
 token: ""
 web_port: 8080
@@ -58,6 +63,13 @@ One pending on-timer and one pending off-timer can run at the same time; setting
 on-timer only replaces the existing on-timer, and setting a new off-timer only replaces
 the existing off-timer. They survive app/server restarts, but missed events are not
 replayed if the server is off at the scheduled time.
+
+When an AC IP is saved in `ac_host` or `last_ac_host`, the app will try to reconnect
+automatically after startup or a temporary network failure. If automatic reconnect has
+not completed yet, the setup screen shows a button to reconnect to the last saved IP.
+
+Power-on schedules can optionally set mode and target temperature. If Fan mode is
+selected, the temperature field is hidden in the UI and ignored by the scheduler.
 
 ## Finding Your AC's IP Address
 
