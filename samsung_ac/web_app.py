@@ -7,6 +7,7 @@ Provides a mobile-friendly web UI and REST API.
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -34,6 +35,7 @@ usage_log_path: Path = None
 config_file_path: Path = None
 last_reconnect_attempt = 0
 RECONNECT_RETRY_SECONDS = 30
+state_lock = threading.RLock()
 
 
 def get_config_path(config_path: str = None) -> Path:
@@ -160,44 +162,46 @@ def _connect_to_host(host: str) -> bool:
     if not host:
         return False
 
-    if ac:
-        ac.disconnect()
+    with state_lock:
+        if ac:
+            ac.disconnect()
 
-    candidate = SamsungACProtocol(
-        host=host,
-        port=config.get("ac_port", 2878),
-        token=config.get("token", ""),
-    )
-    ok = candidate.connect()
-    ac = candidate
-    if ok:
-        _remember_host(host)
-        if scheduler:
+        candidate = SamsungACProtocol(
+            host=host,
+            port=config.get("ac_port", 2878),
+            token=config.get("token", ""),
+        )
+        ok = candidate.connect()
+        ac = candidate
+        if ok:
+            _remember_host(host)
+            if scheduler:
+                scheduler.shutdown()
+            scheduler = ACScheduler(ac, schedule_path=schedule_path)
+            # Wait a moment for device discovery
+            time.sleep(2)
+        elif scheduler:
             scheduler.shutdown()
-        scheduler = ACScheduler(ac, schedule_path=schedule_path)
-        # Wait a moment for device discovery
-        time.sleep(2)
-    elif scheduler:
-        scheduler.shutdown()
-        scheduler = None
-    return ok
+            scheduler = None
+        return ok
 
 
 def _maybe_reconnect():
     """Try reconnecting to the configured host after boot/network interruptions."""
     global last_reconnect_attempt
-    host = _configured_host()
-    if not host:
-        return
-    if ac and ac.connected:
-        return
+    with state_lock:
+        host = _configured_host()
+        if not host:
+            return
+        if ac and ac.connected:
+            return
 
-    now = time.time()
-    if now - last_reconnect_attempt < RECONNECT_RETRY_SECONDS:
-        return
-    last_reconnect_attempt = now
-    logger.info(f"Trying to reconnect to AC at {host}")
-    _connect_to_host(host)
+        now = time.time()
+        if now - last_reconnect_attempt < RECONNECT_RETRY_SECONDS:
+            return
+        last_reconnect_attempt = now
+        logger.info(f"Trying to reconnect to AC at {host}")
+        _connect_to_host(host)
 
 
 # --- Web UI routes ---
@@ -208,6 +212,16 @@ def index():
 
 
 # --- REST API ---
+
+@app.route("/healthz")
+def healthz():
+    """Lightweight service healthcheck with no reconnect side effects."""
+    return jsonify({
+        "ok": True,
+        "connected": bool(ac and ac.connected),
+        "configured_host": _configured_host(),
+    })
+
 
 @app.route("/api/status")
 def api_status():
@@ -248,7 +262,16 @@ def api_temperature():
     if ac is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
-    temp = int(data.get("temp", 24))
+    try:
+        temp = int(data["temp"])
+    except KeyError:
+        return jsonify({"error": "Missing temp"}), 400
+    except (TypeError, ValueError):
+        return jsonify({"error": "Temperature must be an integer"}), 400
+
+    if temp < 16 or temp > 30:
+        return jsonify({"error": "Temperature must be between 16 and 30"}), 400
+
     ok = ac.set_temperature(temp)
     return jsonify({"ok": ok, "temp": temp})
 
@@ -348,11 +371,12 @@ def api_reconnect():
 @app.route("/api/disconnect", methods=["POST"])
 def api_disconnect():
     global ac, scheduler
-    if ac:
-        ac.disconnect()
-    if scheduler:
-        scheduler.shutdown()
-        scheduler = None
+    with state_lock:
+        if ac:
+            ac.disconnect()
+        if scheduler:
+            scheduler.shutdown()
+            scheduler = None
     return jsonify({"ok": True})
 
 

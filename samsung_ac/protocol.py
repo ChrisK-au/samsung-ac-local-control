@@ -110,6 +110,11 @@ ATTR_MAP = {
 }
 
 
+def _xml_to_string(element: ET.Element) -> str:
+    """Serialize an XML element without an XML declaration."""
+    return ET.tostring(element, encoding="unicode", short_empty_elements=True)
+
+
 class SamsungACProtocol:
     """
     Handles TLS communication with a Samsung AC WiFi adapter on port 2878.
@@ -299,7 +304,9 @@ class SamsungACProtocol:
     def _send_auth(self):
         """Send authentication token to the AC."""
         if self.token:
-            xml = f'<Request Type="AuthToken"><User Token="{self.token}"/></Request>'
+            request = ET.Element("Request", {"Type": "AuthToken"})
+            ET.SubElement(request, "User", {"Token": self.token})
+            xml = _xml_to_string(request)
         else:
             xml = '<Request Type="GetToken"/>'
         self._send(xml)
@@ -326,8 +333,7 @@ class SamsungACProtocol:
                 logger.info(f"Received token: {self.token}")
             # Now authenticate with the token
             if self.token:
-                xml = f'<Request Type="AuthToken"><User Token="{self.token}"/></Request>'
-                self._send(xml)
+                self._send_auth()
             else:
                 self._request_device_list()
 
@@ -376,7 +382,9 @@ class SamsungACProtocol:
     def request_status(self):
         """Request current device state."""
         if self._duid:
-            self._send(f'<Request Type="DeviceState"><Device DUID="{self._duid}"/></Request>')
+            request = ET.Element("Request", {"Type": "DeviceState"})
+            ET.SubElement(request, "Device", {"DUID": self._duid})
+            self._send(_xml_to_string(request))
 
     def _parse_device_state(self, root):
         """Parse a DeviceState response, updating our status."""
@@ -434,13 +442,14 @@ class SamsungACProtocol:
         if not self._duid:
             logger.error("No device DUID - cannot send control")
             return False
-        xml = (
-            f'<Request Type="DeviceControl">'
-            f'<Control CommandID="cmd" DUID="{self._duid}">'
-            f'<Attr ID="{attr_id}" Value="{value}"/>'
-            f'</Control>'
-            f'</Request>'
+        request = ET.Element("Request", {"Type": "DeviceControl"})
+        control = ET.SubElement(
+            request,
+            "Control",
+            {"CommandID": "cmd", "DUID": self._duid},
         )
+        ET.SubElement(control, "Attr", {"ID": attr_id, "Value": value})
+        xml = _xml_to_string(request)
         try:
             self._send(xml)
             return True
@@ -473,8 +482,20 @@ class SamsungACProtocol:
         return self._control("AC_FUN_WINDLEVEL", speed)
 
     def set_swing(self, mode: str) -> bool:
-        """Set swing/direction mode."""
-        return self._control("AC_FUN_DIRECTION", mode)
+        """
+        Set swing/direction mode.
+
+        This ducted installation does not support swing vanes, so the method is
+        intentionally disabled. For split-system models that do support swing,
+        validate against SwingMode and send AC_FUN_DIRECTION, for example:
+
+            valid = {s.value for s in SwingMode}
+            if mode not in valid:
+                return False
+            return self._control("AC_FUN_DIRECTION", mode)
+        """
+        logger.info("Swing/direction control is not supported by this ducted AC")
+        return False
 
     def set_convenient_mode(self, mode: str) -> bool:
         """Set convenient mode: Off, Quiet, Sleep, TurboMode, Smart"""
