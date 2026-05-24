@@ -1,6 +1,6 @@
 # Samsung AC Local Control - Project Notes
 
-Last updated: 2026-05-22 AWST
+Last updated: 2026-05-24 AWST
 
 ## Goal
 
@@ -25,6 +25,10 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - One pending on-timer and one pending off-timer can run at the same time.
 - The app remembers the last connected AC IP and can reconnect automatically or via
   the setup screen after startup/network interruptions.
+- Older configs with only `ac_host` are backfilled with `last_ac_host`, and successful
+  startup connections persist the last-known host for reboot recovery.
+- If the setup screen appears with a saved host, the UI offers a reconnect button and
+  automatically retries in the background until the controls come back.
 - Power-on schedules can optionally set operation mode and target temperature.
 - Fan-mode power-on schedules hide/ignore temperature because setpoint is not relevant.
 - A faint UI build stamp helps confirm which version is deployed.
@@ -46,6 +50,7 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - `samsung_ac/discovery.py`: LAN discovery for devices listening on port `2878`.
 - `samsung_ac/scheduler.py`: App-side schedules and one-shot timers.
 - `pair.py`: One-time token pairing helper.
+- `README.md`: Public setup, first-time pairing, and deployment guidance.
 - `config.example.yaml`: Public example configuration.
 - `config.yaml`: Private local configuration, ignored by Git.
 - `schedules.yaml`: App-side schedule/timer persistence file, ignored by Git.
@@ -72,6 +77,8 @@ Some adapters return the token as:
 ```
 
 The pairing helper accepts `Status="Completed"` as a successful token response.
+The README documents the first-time pairing flow: run `pair.py` with the adapter IP,
+then hold the adapter's physical `AP` button for about 5 seconds when prompted.
 
 ## Deployment Notes
 
