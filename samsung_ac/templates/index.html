@@ -19,7 +19,7 @@
         <!-- Setup panel (shown when not connected) -->
         <div id="setup-panel" class="panel" style="display:none;">
             <h2>Setup</h2>
-            <p>No AC unit configured. Scan your network to find it.</p>
+            <p id="setup-message">No AC unit configured. Scan your network to find it.</p>
             <button onclick="reconnectLast()" id="btn-reconnect-last" style="display:none;"></button>
             <button onclick="discover()" id="btn-discover">Scan Network</button>
             <div id="discover-results"></div>
@@ -176,14 +176,17 @@
             </div>
         </div>
         <!-- Bump this build stamp for each deployable UI/backend change. -->
-        <footer class="app-version">Build 2026.05.23.3</footer>
+        <footer class="app-version">Build 2026.05.24.2</footer>
     </div>
 
     <script>
     const API = '';
+    const LAST_HOST_KEY = 'samsung-ac-last-host';
     let currentStatus = {};
     let pollInterval = null;
-    let configuredHost = '';
+    let configuredHost = localStorage.getItem(LAST_HOST_KEY) || '';
+    let reconnectRetryTimer = null;
+    let autoReconnectInProgress = false;
 
     // --- API helpers ---
     async function api(path, method='GET', body=null) {
@@ -201,7 +204,7 @@
     // --- Status polling ---
     async function pollStatus() {
         const data = await api('/api/status');
-        configuredHost = data.configured_host || configuredHost || '';
+        rememberConfiguredHost(data.configured_host || configuredHost || '');
         updateReconnectButton();
         if (data.error && !data.connected) {
             showSetup();
@@ -290,9 +293,11 @@
         document.getElementById('setup-panel').style.display = '';
         document.getElementById('control-panel').style.display = 'none';
         updateReconnectButton();
+        scheduleAutoReconnect(1000);
     }
 
     function showControl() {
+        clearAutoReconnect();
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('control-panel').style.display = '';
     }
@@ -361,6 +366,7 @@
     async function connectTo(ip) {
         const data = await api('/api/connect', 'POST', { host: ip });
         if (data.ok) {
+            rememberConfiguredHost(data.host || ip);
             setTimeout(pollStatus, 2000);
         } else {
             alert('Could not connect to ' + ip);
@@ -368,28 +374,69 @@
     }
 
     async function reconnectLast() {
+        await performReconnect(false);
+    }
+
+    async function performReconnect(silent) {
+        if (!configuredHost && silent) return;
         const btn = document.getElementById('btn-reconnect-last');
-        btn.textContent = 'Reconnecting...';
-        btn.disabled = true;
-        const data = await api('/api/reconnect', 'POST', {});
-        btn.disabled = false;
+        const msg = document.getElementById('setup-message');
+        clearAutoReconnect();
+        if (silent) {
+            autoReconnectInProgress = true;
+        }
+        if (btn) {
+            btn.textContent = 'Reconnecting...';
+            btn.disabled = true;
+        }
+        if (msg) msg.textContent = 'Trying to reconnect to ' + configuredHost + '...';
+        let data = await api('/api/reconnect', 'POST', {});
+        if (!data.ok && configuredHost) {
+            data = await api('/api/connect', 'POST', { host: configuredHost });
+        }
+        if (btn) btn.disabled = false;
+        autoReconnectInProgress = false;
         if (data.ok) {
-            configuredHost = data.host || configuredHost;
+            rememberConfiguredHost(data.host || configuredHost);
             setTimeout(pollStatus, 1000);
         } else {
-            btn.textContent = configuredHost ? 'Reconnect to ' + configuredHost : 'Reconnect to last AC';
-            alert(data.error || 'Could not reconnect');
+            updateReconnectButton();
+            scheduleAutoReconnect(10000);
+            if (!silent) alert(data.error || 'Could not reconnect');
         }
+    }
+
+    function scheduleAutoReconnect(delayMs) {
+        if (!configuredHost || autoReconnectInProgress || reconnectRetryTimer) return;
+        reconnectRetryTimer = setTimeout(() => {
+            reconnectRetryTimer = null;
+            performReconnect(true);
+        }, delayMs);
+    }
+
+    function clearAutoReconnect() {
+        if (!reconnectRetryTimer) return;
+        clearTimeout(reconnectRetryTimer);
+        reconnectRetryTimer = null;
+    }
+
+    function rememberConfiguredHost(host) {
+        if (!host) return;
+        configuredHost = host;
+        localStorage.setItem(LAST_HOST_KEY, host);
     }
 
     function updateReconnectButton() {
         const btn = document.getElementById('btn-reconnect-last');
+        const msg = document.getElementById('setup-message');
         if (!btn) return;
         if (configuredHost) {
             btn.style.display = '';
             btn.textContent = 'Reconnect to ' + configuredHost;
+            if (msg) msg.textContent = 'AC is not connected. Reconnect to the last saved unit or scan your network.';
         } else {
             btn.style.display = 'none';
+            if (msg) msg.textContent = 'No AC unit configured. Scan your network to find it.';
         }
     }
 

@@ -51,6 +51,7 @@ def load_config(config_path: str = None) -> dict:
 
     default_config = {
         "ac_host": "",
+        "last_ac_host": "",
         "ac_port": 2878,
         "token": "",
         "web_port": 8080,
@@ -61,6 +62,11 @@ def load_config(config_path: str = None) -> dict:
         with open(config_path) as f:
             file_config = yaml.safe_load(f) or {}
         default_config.update(file_config)
+
+    # Older config files only had ac_host. Keep a durable last-known host so
+    # the setup screen can offer reconnect even if the active host is cleared.
+    if default_config.get("ac_host") and not default_config.get("last_ac_host"):
+        default_config["last_ac_host"] = default_config["ac_host"]
 
     return default_config
 
@@ -107,6 +113,7 @@ def init_app(cfg: dict = None, config_path: str = None):
         if ac.connect():
             config["ac_host"] = host
             config["last_ac_host"] = host
+            save_config(config, config_file_path)
             logger.info(f"Connected to AC at {host}")
         else:
             logger.warning(f"Could not connect to AC at {host}")
