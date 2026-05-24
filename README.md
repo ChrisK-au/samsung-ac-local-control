@@ -25,8 +25,9 @@ This project is unofficial and is not affiliated with Samsung.
 ## Quick Start
 
 ```bash
-# Clone the repo, then enter the project directory.
-cd samsung-ac-local
+# Clone the repo, then enter the project directory
+git clone https://github.com/ChrisK-au/samsung-ac-local-control.git
+cd samsung-ac-local-control
 
 # Install dependencies
 pip install -r requirements.txt
@@ -42,6 +43,32 @@ python -m samsung_ac -v
 ```
 
 Then open http://localhost:8080 in your browser (or from your phone: http://YOUR_SERVER_IP:8080).
+
+## First-Time Pairing
+
+Some Samsung WiFi adapters require a pairing token before they will accept control commands.
+If your AC does not respond after discovery or manual IP entry, pair it once:
+
+1. Find the AC WiFi adapter's IP address. You can use the web UI "Scan Network" button,
+   check your router's DHCP client list, or run `python -m samsung_ac.discovery`.
+2. Run the pairing helper:
+
+   ```bash
+   python pair.py 192.168.1.xxx
+   ```
+
+3. When the script says the AC is ready for pairing, press and hold the physical `AP`
+   button on the Samsung WiFi adapter for about 5 seconds. On MIM-H02-style adapters,
+   this button is on the front of the small WiFi module near the LED indicators.
+4. Wait for the script to receive a token. It saves the token and AC IP to `config.yaml`.
+5. Start the app:
+
+   ```bash
+   python -m samsung_ac
+   ```
+
+If your adapter has both `AP` and `WPS` buttons, use the `AP` button for pairing.
+The token is private; do not publish your `config.yaml`.
 
 ## Configuration
 
