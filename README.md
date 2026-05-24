@@ -15,6 +15,8 @@ This project is unofficial and is not affiliated with Samsung.
 - App-side scheduling (e.g. "turn off at 2am on weeknights", or turn on with
   a chosen mode and temperature)
 - App-side schedules persist across app/server restarts via `schedules.yaml`
+- Usage-session logging to CSV with mode, temperature, room temperature, fan speed,
+  and mid-session change summaries
 - Reconnects to the saved AC IP after service restarts/network interruptions, with
   a manual "Reconnect to last IP" option in the setup screen
 - Faint build stamp in the UI so deployed updates can be confirmed at a glance
@@ -97,6 +99,13 @@ not completed yet, the setup screen shows a button to reconnect to the last save
 
 Power-on schedules can optionally set mode and target temperature. If Fan mode is
 selected, the temperature field is hidden in the UI and ignored by the scheduler.
+
+Usage sessions are saved in `usage_log.csv` beside `config.yaml`. A session starts
+when the app observes the AC is on and is written as one CSV row when the app observes
+the AC has turned off. The log includes start/end mode, target temperature, room
+temperature, fan speed, values used during the session, and a change count. The file is
+capped to 500 total lines including the header and can be downloaded from the subtle
+"Download log" link at the bottom of the web UI.
 
 ## Finding Your AC's IP Address
 

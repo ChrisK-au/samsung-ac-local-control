@@ -23,6 +23,9 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - App-side schedules persist across service/app restarts in `schedules.yaml`.
 - App-side one-shot on/off timers persist while pending.
 - One pending on-timer and one pending off-timer can run at the same time.
+- Completed usage sessions are logged to `usage_log.csv`, capped to 500 total CSV
+  lines including the header, with summaries of mode, target temperature, room
+  temperature, fan speed, and mid-session user-setting changes observed during polling.
 - The app remembers the last connected AC IP and can reconnect automatically or via
   the setup screen after startup/network interruptions.
 - Older configs with only `ac_host` are backfilled with `last_ac_host`, and successful
@@ -49,11 +52,13 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - `samsung_ac/static/style.css`: UI styling.
 - `samsung_ac/discovery.py`: LAN discovery for devices listening on port `2878`.
 - `samsung_ac/scheduler.py`: App-side schedules and one-shot timers.
+- `samsung_ac/usage_log.py`: CSV usage-session logger.
 - `pair.py`: One-time token pairing helper.
 - `README.md`: Public setup, first-time pairing, and deployment guidance.
 - `config.example.yaml`: Public example configuration.
 - `config.yaml`: Private local configuration, ignored by Git.
 - `schedules.yaml`: App-side schedule/timer persistence file, ignored by Git.
+- `usage_log.csv`: Local usage-session log, ignored by Git.
 - `requirements.txt`: Python dependencies.
 
 ## Protocol Notes

@@ -11,11 +11,12 @@ import time
 from pathlib import Path
 
 import yaml
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 from .discovery import scan_network, get_local_network
 from .protocol import SamsungACProtocol, ACStatus, OpMode, FanSpeed, SwingMode
 from .scheduler import ACScheduler
+from .usage_log import UsageLogger
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,10 @@ app = Flask(__name__,
 # Global state
 ac: SamsungACProtocol = None
 scheduler: ACScheduler = None
+usage_logger: UsageLogger = None
 config: dict = {}
 schedule_path: Path = None
+usage_log_path: Path = None
 config_file_path: Path = None
 last_reconnect_attempt = 0
 RECONNECT_RETRY_SECONDS = 30
@@ -43,6 +46,11 @@ def get_config_path(config_path: str = None) -> Path:
 def get_schedule_path(config_path: str = None) -> Path:
     """Store schedules beside the active config file."""
     return get_config_path(config_path).parent / "schedules.yaml"
+
+
+def get_usage_log_path(config_path: str = None) -> Path:
+    """Store usage logs beside the active config file."""
+    return get_config_path(config_path).parent / "usage_log.csv"
 
 
 def load_config(config_path: str = None) -> dict:
@@ -88,12 +96,14 @@ def _status_with_app_timers() -> dict:
     if scheduler:
         for timer_type in ("on", "off"):
             status[_timer_attr_name(timer_type)] = scheduler.get_timer_minutes(timer_type)
+    if usage_logger:
+        usage_logger.observe(status)
     return status
 
 
 def init_app(cfg: dict = None, config_path: str = None):
     """Initialize the AC connection and scheduler."""
-    global ac, scheduler, config, schedule_path, config_file_path
+    global ac, scheduler, usage_logger, config, schedule_path, usage_log_path, config_file_path
 
     if cfg:
         config = cfg
@@ -102,6 +112,9 @@ def init_app(cfg: dict = None, config_path: str = None):
 
     config_file_path = get_config_path(config_path)
     schedule_path = get_schedule_path(config_path)
+    usage_log_path = get_usage_log_path(config_path)
+    usage_logger = UsageLogger(usage_log_path)
+    usage_logger.ensure_file()
 
     if config.get("ac_host") or config.get("last_ac_host"):
         host = config.get("ac_host") or config.get("last_ac_host")
@@ -351,6 +364,20 @@ def api_refresh():
     ac.request_status()
     time.sleep(1)
     return jsonify(_status_with_app_timers())
+
+
+@app.route("/api/usage-log")
+def api_usage_log():
+    """Download the AC usage session log as CSV."""
+    path = usage_log_path or get_usage_log_path()
+    logger_instance = usage_logger or UsageLogger(path)
+    logger_instance.ensure_file()
+    return send_file(
+        path,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="samsung_ac_usage_log.csv",
+    )
 
 
 def run(config_path: str = None):
