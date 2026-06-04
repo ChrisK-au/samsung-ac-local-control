@@ -14,7 +14,8 @@ This project is unofficial and is not affiliated with Samsung.
 - App-side one-shot timers (turn on/off in N minutes)
 - App-side scheduling (e.g. "turn off at 2am on weeknights", or turn on with
   a chosen mode and temperature)
-- App-side schedules persist across app/server restarts via `schedules.yaml`
+- App-side schedules can be selected, edited, and updated in place, and persist
+  across app/server restarts via `schedules.yaml`
 - Usage-session logging to CSV with mode, temperature, room temperature, fan speed,
   and mid-session change summaries
 - Reconnects to the saved AC IP after service restarts/network interruptions, with
@@ -93,6 +94,12 @@ on-timer only replaces the existing on-timer, and setting a new off-timer only r
 the existing off-timer. They survive app/server restarts, but missed events are not
 replayed if the server is off at the scheduled time.
 
+To edit an existing schedule, tap it in the schedule list. Its values are copied into
+the schedule fields, the `Add` button changes to `Update`, and saving updates the
+registered schedule instead of deleting it first in the browser. If the edited action,
+time, or day group changes the schedule ID, the old scheduler job is removed only after
+the new one has been registered.
+
 When an AC IP is saved in `ac_host` or `last_ac_host`, the app will try to reconnect
 automatically after startup or a temporary network failure. If automatic reconnect has
 not completed yet, the setup screen shows a button to reconnect to the last saved IP.
@@ -106,6 +113,10 @@ the AC has turned off. The log includes start/end mode, target temperature, room
 temperature, fan speed, values used during the session, and a change count. The file is
 capped to 500 total lines including the header and can be downloaded from the subtle
 "Download log" link at the bottom of the web UI.
+
+If you deploy with an `rsync --delete` style update script, exclude `usage_log.csv`
+alongside `config.yaml`, `schedules.yaml`, and `.venv` so updates do not remove local
+runtime state.
 
 ## Finding Your AC's IP Address
 
@@ -150,6 +161,14 @@ sudo nano /etc/systemd/system/samsung-ac.service
 sudo systemctl daemon-reload
 sudo systemctl enable samsung-ac
 sudo systemctl start samsung-ac
+```
+
+The app does not write a separate application `.log` file by default. When running as a
+systemd service, operational logs go to journald:
+
+```bash
+sudo journalctl -u samsung-ac -n 100 --no-pager
+sudo journalctl -u samsung-ac -f
 ```
 
 ## Not Included

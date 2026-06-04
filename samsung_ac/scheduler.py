@@ -109,11 +109,44 @@ class ACScheduler:
             Schedule ID
         """
         params = params or {}
-        schedule_id = f"{action}_{hour:02d}{minute:02d}_{days}"
+        schedule_id = self._make_schedule_id(action, hour, minute, days)
         self._register_schedule(schedule_id, action, hour, minute, days, params)
         self._save_schedules()
         logger.info(f"Added schedule: {schedule_id} at {hour:02d}:{minute:02d} ({days})")
         return schedule_id
+
+    def update_schedule(
+        self,
+        schedule_id: str,
+        action: str,
+        hour: int,
+        minute: int = 0,
+        days: str = "daily",
+        params: Optional[dict] = None,
+    ) -> str | None:
+        """Update an existing schedule by replacing its registered job."""
+        if schedule_id not in self._schedules:
+            logger.warning(f"Cannot update missing schedule: {schedule_id}")
+            return None
+
+        params = params or {}
+        new_schedule_id = self._make_schedule_id(action, hour, minute, days)
+        self._register_schedule(new_schedule_id, action, hour, minute, days, params)
+
+        if new_schedule_id != schedule_id:
+            try:
+                self.scheduler.remove_job(schedule_id)
+            except Exception:
+                pass
+            self._schedules.pop(schedule_id, None)
+
+        self._save_schedules()
+        logger.info(f"Updated schedule: {schedule_id} -> {new_schedule_id}")
+        return new_schedule_id
+
+    @staticmethod
+    def _make_schedule_id(action: str, hour: int, minute: int, days: str) -> str:
+        return f"{action}_{hour:02d}{minute:02d}_{days}"
 
     def _register_schedule(
         self,
@@ -219,7 +252,7 @@ class ACScheduler:
                 minute = int(item.get("minute", 0))
                 days = item.get("days", "daily")
                 params = item.get("params", {}) or {}
-                schedule_id = item.get("id") or f"{action}_{hour:02d}{minute:02d}_{days}"
+                schedule_id = item.get("id") or self._make_schedule_id(action, hour, minute, days)
                 self._register_schedule(schedule_id, action, hour, minute, days, params)
             except Exception as e:
                 logger.error(f"Skipping invalid schedule {item}: {e}")

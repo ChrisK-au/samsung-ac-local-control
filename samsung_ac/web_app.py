@@ -329,6 +329,22 @@ def api_schedule_add():
     return jsonify({"ok": True, "id": schedule_id})
 
 
+@app.route("/api/schedule/<schedule_id>", methods=["PUT"])
+def api_schedule_update(schedule_id):
+    if scheduler is None:
+        return jsonify({"error": "Scheduler not available"}), 503
+    data = request.json or {}
+    action = data.get("action", "power_off")
+    hour = int(data.get("hour", 0))
+    minute = int(data.get("minute", 0))
+    days = data.get("days", "daily")
+    params = data.get("params", {})
+    new_schedule_id = scheduler.update_schedule(schedule_id, action, hour, minute, days, params)
+    if new_schedule_id is None:
+        return jsonify({"ok": False, "error": "Schedule not found"}), 404
+    return jsonify({"ok": True, "id": new_schedule_id})
+
+
 @app.route("/api/schedule/<schedule_id>", methods=["DELETE"])
 def api_schedule_remove(schedule_id):
     if scheduler is None:

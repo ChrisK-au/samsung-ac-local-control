@@ -1,6 +1,6 @@
 # Samsung AC Local Control - Project Notes
 
-Last updated: 2026-05-24 AWST
+Last updated: 2026-06-04 AWST
 
 ## Goal
 
@@ -21,6 +21,8 @@ Samsung TLS/XML protocol on TCP port `2878`.
   - Mode selection
   - Fan speed low/mid/high/auto
 - App-side schedules persist across service/app restarts in `schedules.yaml`.
+- Existing schedule entries can be selected in the UI, copied into the schedule form,
+  and updated through a backend `PUT /api/schedule/<id>` route.
 - App-side one-shot on/off timers persist while pending.
 - One pending on-timer and one pending off-timer can run at the same time.
 - Completed usage sessions are logged to `usage_log.csv`, capped to 500 total CSV
@@ -36,6 +38,8 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - Fan-mode power-on schedules hide/ignore temperature because setpoint is not relevant.
 - A faint UI build stamp helps confirm which version is deployed.
 - Missed schedule/timer events are intentionally not replayed after reboot or downtime.
+- Runtime service logs are expected in systemd/journald when deployed as a service,
+  not in an app-managed `.log` file.
 
 ## Hardware Notes
 
@@ -93,5 +97,14 @@ Recommended always-on deployment:
 - `systemd` service based on `samsung-ac.service.example`
 - Web UI bound to the local LAN only
 - DHCP reservation for the AC WiFi adapter if possible
+- If deploying with `rsync --delete`, exclude local runtime files:
+  `config.yaml`, `schedules.yaml`, `usage_log.csv`, and `.venv`.
+
+Useful service log commands:
+
+```bash
+sudo journalctl -u samsung-ac -n 100 --no-pager
+sudo journalctl -u samsung-ac -f
+```
 
 The web UI has no built-in authentication. Do not expose it directly to the internet.

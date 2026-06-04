@@ -275,12 +275,19 @@ header h1 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 0;
+    padding: 8px;
     border-bottom: 1px solid var(--accent);
+    border-radius: 8px;
+    cursor: pointer;
 }
 
 .schedule-item:last-child {
     border-bottom: none;
+}
+
+.schedule-item.selected {
+    background: rgba(76, 201, 240, 0.12);
+    outline: 1px solid var(--cool);
 }
 
 .sched-info {
@@ -309,15 +316,32 @@ header h1 {
 .schedule-add {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-top: 12px;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.schedule-fields {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    gap: 6px;
+    min-width: 0;
+}
+
+.schedule-main-options {
+    align-items: center;
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 6px;
 }
 
 .schedule-on-options {
     display: flex;
-    gap: 8px;
-    width: 100%;
+    flex: 0 0 auto;
+    gap: 6px;
 }
 
 .schedule-on-options.is-hidden {
@@ -325,32 +349,48 @@ header h1 {
 }
 
 .schedule-on-options select {
-    flex: 1;
+    width: 86px;
 }
 
 .schedule-add select,
 .schedule-add input[type="time"] {
-    padding: 8px;
+    padding: 8px 6px;
     border-radius: 8px;
     border: 1px solid var(--accent);
     background: var(--bg);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    min-width: 0;
 }
 
 .schedule-add span {
     color: var(--text-dim);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    flex: 0 0 auto;
+}
+
+#sched-action {
+    width: 78px;
+}
+
+#sched-time {
+    width: 83px;
+}
+
+#sched-days {
+    width: 88px;
 }
 
 .schedule-add button {
-    padding: 8px 16px;
+    padding: 8px 10px;
     border-radius: 8px;
     border: 1px solid var(--cool);
     background: transparent;
     color: var(--cool);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    flex: 0 0 68px;
+    min-height: 35px;
 }
 
 /* Setup panel */
