@@ -114,6 +114,11 @@ temperature, fan speed, values used during the session, and a change count. The 
 capped to 500 total lines including the header and can be downloaded from the subtle
 "Download log" link at the bottom of the web UI.
 
+Sessions are observed from live status updates, which the app fetches in the background
+(default every 60 seconds, configurable via `poll_interval`) even when nobody has the
+web UI open. This keeps the connection alive and means scheduled on/off cycles appear
+in the log. The poller pauses after an explicit disconnect from the setup screen.
+
 If you deploy with an `rsync --delete` style update script, exclude `usage_log.csv`
 alongside `config.yaml`, `schedules.yaml`, and `.venv` so updates do not remove local
 runtime state.

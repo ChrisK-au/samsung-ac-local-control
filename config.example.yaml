@@ -18,3 +18,7 @@ token: ""
 # Web server settings.
 web_host: "0.0.0.0"
 web_port: 8080
+
+# How often (seconds) the background poller refreshes AC status. Keeps the
+# connection alive and feeds the usage log even with no browser open.
+poll_interval: 60

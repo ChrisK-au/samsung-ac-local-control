@@ -4,12 +4,11 @@ Flask web application for Samsung AC control.
 Provides a mobile-friendly web UI and REST API.
 """
 
-import json
 import logging
-import os
 import threading
 import time
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from flask import Flask, jsonify, render_template, request, send_file
@@ -36,6 +35,12 @@ config_file_path: Path = None
 last_reconnect_attempt = 0
 RECONNECT_RETRY_SECONDS = 30
 state_lock = threading.RLock()
+
+# Background status poller: keeps the usage log fed (and the TLS connection
+# warm) even when no browser tab is polling /api/status.
+POLL_INTERVAL_SECONDS = 60
+_poller_thread: Optional[threading.Thread] = None
+_poller_stop = threading.Event()
 
 
 def get_config_path(config_path: str = None) -> Path:
@@ -66,6 +71,7 @@ def load_config(config_path: str = None) -> dict:
         "token": "",
         "web_port": 8080,
         "web_host": "0.0.0.0",
+        "poll_interval": POLL_INTERVAL_SECONDS,
     }
 
     if config_path.exists():
@@ -98,9 +104,54 @@ def _status_with_app_timers() -> dict:
     if scheduler:
         for timer_type in ("on", "off"):
             status[_timer_attr_name(timer_type)] = scheduler.get_timer_minutes(timer_type)
-    if usage_logger:
-        usage_logger.observe(status)
     return status
+
+
+def _register_status_callback(protocol: SamsungACProtocol):
+    """Feed every AC status update into the usage logger.
+
+    Status updates arrive via the protocol reader thread whenever the AC
+    responds to a DeviceState request (including the automatic refresh after
+    every control command) or pushes a Status update.  Observing here means
+    schedule-driven power cycles are logged even if no browser is open.
+    """
+
+    def on_status(status: ACStatus):
+        if usage_logger:
+            usage_logger.observe(status.to_dict())
+
+    protocol.set_status_callback(on_status)
+
+
+def _poller_loop(interval: float):
+    """Background loop: reconnect if needed, then refresh device state."""
+    while not _poller_stop.is_set():
+        try:
+            _maybe_reconnect()
+            if ac and ac.connected:
+                ac.request_status()
+        except Exception as e:
+            logger.error(f"Status poller error: {e}")
+        _poller_stop.wait(interval)
+
+
+def _start_poller(interval: float):
+    """Start the background status poller thread (idempotent)."""
+    global _poller_thread
+    if _poller_thread and _poller_thread.is_alive():
+        if not _poller_stop.is_set():
+            return  # already running
+        # A stop was requested (manual disconnect); the old thread is
+        # exiting.  Give it a moment, then start a fresh one below.
+        _poller_thread.join(timeout=5)
+    _poller_stop.clear()
+    _poller_thread = threading.Thread(
+        target=_poller_loop,
+        args=(interval,),
+        daemon=True,
+        name="status-poller",
+    )
+    _poller_thread.start()
 
 
 def init_app(cfg: dict = None, config_path: str = None):
@@ -125,6 +176,7 @@ def init_app(cfg: dict = None, config_path: str = None):
             port=config.get("ac_port", 2878),
             token=config.get("token", ""),
         )
+        _register_status_callback(ac)
         if ac.connect():
             config["ac_host"] = host
             config["last_ac_host"] = host
@@ -140,6 +192,8 @@ def init_app(cfg: dict = None, config_path: str = None):
         scheduler = ACScheduler(ac, schedule_path=schedule_path)
     else:
         scheduler = None
+
+    _start_poller(float(config.get("poll_interval", POLL_INTERVAL_SECONDS)))
 
 
 def _remember_host(host: str):
@@ -171,6 +225,7 @@ def _connect_to_host(host: str) -> bool:
             port=config.get("ac_port", 2878),
             token=config.get("token", ""),
         )
+        _register_status_callback(candidate)
         ok = candidate.connect()
         ac = candidate
         if ok:
@@ -178,6 +233,7 @@ def _connect_to_host(host: str) -> bool:
             if scheduler:
                 scheduler.shutdown()
             scheduler = ACScheduler(ac, schedule_path=schedule_path)
+            _start_poller(float(config.get("poll_interval", POLL_INTERVAL_SECONDS)))
             # Wait a moment for device discovery
             time.sleep(2)
         elif scheduler:
@@ -239,27 +295,33 @@ def api_status():
 
 @app.route("/api/power", methods=["POST"])
 def api_power():
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
     on = data.get("on", True)
-    ok = ac.set_power(on)
+    ok = protocol.set_power(on)
     return jsonify({"ok": ok, "power": "On" if on else "Off"})
 
 
 @app.route("/api/mode", methods=["POST"])
 def api_mode():
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
     mode = data.get("mode", "Auto")
-    ok = ac.set_mode(mode)
+    ok = protocol.set_mode(mode)
     return jsonify({"ok": ok, "mode": mode})
 
 
 @app.route("/api/temperature", methods=["POST"])
 def api_temperature():
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
     try:
@@ -272,27 +334,31 @@ def api_temperature():
     if temp < 16 or temp > 30:
         return jsonify({"error": "Temperature must be between 16 and 30"}), 400
 
-    ok = ac.set_temperature(temp)
+    ok = protocol.set_temperature(temp)
     return jsonify({"ok": ok, "temp": temp})
 
 
 @app.route("/api/fan", methods=["POST"])
 def api_fan():
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
     speed = data.get("speed", "Auto")
-    ok = ac.set_fan_speed(speed)
+    ok = protocol.set_fan_speed(speed)
     return jsonify({"ok": ok, "speed": speed})
 
 
 @app.route("/api/swing", methods=["POST"])
 def api_swing():
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
     data = request.json or {}
     mode = data.get("mode", "Off")
-    ok = ac.set_swing(mode)
+    ok = protocol.set_swing(mode)
     return jsonify({"ok": ok, "swing": mode})
 
 
@@ -393,15 +459,20 @@ def api_disconnect():
         if scheduler:
             scheduler.shutdown()
             scheduler = None
+        # Stop background polling so we don't silently reconnect/restart
+        # the scheduler after an explicit disconnect.
+        _poller_stop.set()
     return jsonify({"ok": True})
 
 
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
     """Force a status refresh from the AC."""
-    if ac is None:
+    with state_lock:
+        protocol = ac
+    if protocol is None:
         return jsonify({"error": "AC not connected"}), 503
-    ac.request_status()
+    protocol.request_status()
     time.sleep(1)
     return jsonify(_status_with_app_timers())
 

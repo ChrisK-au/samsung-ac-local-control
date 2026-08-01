@@ -28,6 +28,10 @@ Samsung TLS/XML protocol on TCP port `2878`.
 - Completed usage sessions are logged to `usage_log.csv`, capped to 500 total CSV
   lines including the header, with summaries of mode, target temperature, room
   temperature, fan speed, and mid-session user-setting changes observed during polling.
+- A background status poller (default every 60 s, `poll_interval` in `config.yaml`)
+  keeps the AC connection alive and feeds the usage log even when no browser tab is
+  open, so schedule-driven on/off cycles are captured. The poller stops on an explicit
+  `/api/disconnect` and restarts on reconnect.
 - The app remembers the last connected AC IP and can reconnect automatically or via
   the setup screen after startup/network interruptions.
 - Older configs with only `ac_host` are backfilled with `last_ac_host`, and successful

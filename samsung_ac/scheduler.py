@@ -7,6 +7,7 @@ Supports both:
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -329,32 +330,77 @@ class ACScheduler:
         self._save_schedules()
 
     def _execute_action(self, action: str, params: dict):
-        """Execute a scheduled action."""
+        """Execute a scheduled action with connection check and retry."""
         logger.info(f"Executing scheduled action: {action} with params {params}")
-        try:
-            if action == "power_on":
-                self.ac.set_power(True)
-                mode = params.get("mode")
-                if mode:
-                    self.ac.set_mode(mode)
-                temp = params.get("temp")
-                if temp and mode != "Wind":
-                    self.ac.set_temperature(int(temp))
-            elif action == "power_off":
-                self.ac.set_power(False)
-            elif action == "set_temp":
-                temp = params.get("temp", 24)
-                self.ac.set_temperature(int(temp))
-            elif action == "set_mode":
-                mode = params.get("mode", "Auto")
-                self.ac.set_mode(mode)
-            elif action == "set_fan":
-                speed = params.get("speed", "Auto")
-                self.ac.set_fan_speed(speed)
-            else:
-                logger.warning(f"Unknown action: {action}")
-        except Exception as e:
-            logger.error(f"Schedule action failed: {e}")
+
+        # Ensure the AC connection is alive before sending commands.
+        # Samsung MIM-H02 adapters drop TLS connections frequently, so
+        # a scheduled job may find the socket dead.  Try to reconnect once.
+        if not self.ac.connected:
+            logger.warning("AC not connected — attempting reconnect before scheduled action")
+            if not self.ac.connect():
+                logger.error(
+                    "Cannot execute scheduled action %s: AC reconnect failed",
+                    action,
+                )
+                return
+            # Give the post-connect device-discovery handshake time to complete.
+            time.sleep(2)
+
+        max_attempts = 2
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if action == "power_on":
+                    if not self.ac.set_power(True):
+                        raise ConnectionError("set_power returned False")
+                    mode = params.get("mode")
+                    if mode:
+                        time.sleep(1.5)
+                        if not self.ac.set_mode(mode):
+                            raise ConnectionError("set_mode returned False")
+                    temp = params.get("temp")
+                    if temp and mode != "Wind":
+                        time.sleep(1)
+                        if not self.ac.set_temperature(int(temp)):
+                            raise ConnectionError("set_temperature returned False")
+
+                elif action == "power_off":
+                    if not self.ac.set_power(False):
+                        raise ConnectionError("set_power returned False")
+
+                elif action == "set_temp":
+                    temp = params.get("temp", 24)
+                    if not self.ac.set_temperature(int(temp)):
+                        raise ConnectionError("set_temperature returned False")
+
+                elif action == "set_mode":
+                    mode = params.get("mode", "Auto")
+                    if not self.ac.set_mode(mode):
+                        raise ConnectionError("set_mode returned False")
+
+                else:
+                    logger.warning("Unknown scheduled action: %s", action)
+
+                logger.info("Scheduled action %s completed successfully", action)
+                return  # success — exit retry loop
+
+            except Exception as exc:
+                logger.error(
+                    "Scheduled action %s attempt %d/%d failed: %s",
+                    action,
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                if attempt < max_attempts:
+                    # Try reconnecting before the retry.
+                    logger.info("Reconnecting before retry…")
+                    self.ac.disconnect()
+                    time.sleep(1)
+                    if not self.ac.connect():
+                        logger.error("Reconnect failed — giving up on %s", action)
+                        return
+                    time.sleep(2)
 
     # --- Convenience methods ---
 

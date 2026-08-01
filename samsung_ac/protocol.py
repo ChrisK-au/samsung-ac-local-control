@@ -155,6 +155,9 @@ class SamsungACProtocol:
 
     def connect(self) -> bool:
         """Establish TLS connection to the AC unit."""
+        # If re-connecting, clean up any previous state first.
+        self.disconnect()
+
         try:
             # Create SSL context - Samsung uses self-signed certs with weak crypto.
             # The AC has a 1024-bit RSA cert and small DH parameters, so we must:
@@ -278,11 +281,6 @@ class SamsungACProtocol:
             self._send_auth()
             return
 
-        if "InvalidateAccount" in msg:
-            logger.info("Received InvalidateAccount - sending auth")
-            self._send_auth()
-            return
-
         try:
             root = ET.fromstring(msg)
         except ET.ParseError:
@@ -292,6 +290,11 @@ class SamsungACProtocol:
         tag = root.tag
         msg_type = root.get("Type", "")
         status = root.get("Status", "")
+
+        if tag == "Update" and msg_type == "InvalidateAccount":
+            logger.info("Received InvalidateAccount - sending auth")
+            self._send_auth()
+            return
 
         if tag == "Response":
             self._handle_response(root, msg_type, status)
