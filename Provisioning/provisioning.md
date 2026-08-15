@@ -93,23 +93,43 @@ contains dedicated JNI functions `getClientCertPass` and `getServerCertPass`.
 2. MITM the TLS session when near the AP (laptop proxies between Kindle and adapter)
 3. Full reverse-engineering of the native string decryption in the `.so`
 
-### XML Protocol Flow
+### XML Protocol Flow (FULLY DECODED 2026-08-15)
 
-The adapter in AP mode responds to the first command with
-`<Update Type="InvalidateAccount"/>`, then requires client certificate
-authentication before accepting any other commands.
+The AP-mode flow (verified against the app's `jungfrau` package — the
+AP-mode code path, and confirmed in field tests):
 
-Expected flow (same as normal mode):
-1. TLS handshake with client certificate (mTLS)
+1. TLS handshake with client certificate (mTLS) — cert = `ac14k_m.pem`
 2. Server sends: `DRC-1.00` + `<Update Type="InvalidateAccount"/>`
-3. Client sends: `<Request Type="AuthToken"><User Token="..."/></Request>`
-4. Server responds to auth
-5. Client sends WiFi provisioning commands (exact XML TBD)
-6. Server responds with success/failure
+3. Client sends the provisioning command directly (no GetToken/AuthToken in
+   AP mode — mTLS is the authentication):
 
-The WiFi provisioning XML command names are not yet known. Likely candidates:
-`GetAPList`, `SetWiFi`, `ScanWiFi`, etc. The APK's `classes.dex` strings are
-heavily obfuscated via native methods — command names are constructed at runtime.
+```xml
+<Request Type="APConnectionConfig">
+  <ConnectionConfig SSID="MyNetwork" AuthMode="WPA2" EncryptType="AES" Key1="secret"/>
+</Request>
+```
+
+4. Server accepts and reboots immediately (no response — empty/closed TLS
+   connection means the config was accepted)
+
+Command parameters:
+- `AuthMode`: `OPEN` | `WEP` | `WPA` | `WPA2`
+- `EncryptType`: `AES` | `TKIP` (omitted for OPEN and WEP)
+- `Key1`: the WiFi password (omitted for OPEN)
+
+### How the XML was recovered
+
+The APK obfuscates all protocol strings in a 127k-entry int table
+(`bCreateFromDouble` in `MediaBrowserCompat$MediaBrowserImplBase$1R`), decoded
+by XOR chains (`aA(I)` and `isVisibleForViewFindSerializationName(I)`).
+It is **pure Java** — no native execution needed. A Python decoder
+(`tools/decode_strings.py`) reconstructs the table from the baksmali
+`fill-array-data` blocks and recovers strings by index. Key indices:
+`0x14d3=Request`, `0x14d4=Type`, `0x1192e=ConnectionConfig`,
+`0x11945=SSID`, `0x1194f=AuthMode`, `0x11955=Key1`, `0x11962=EncryptType`,
+`0x5485=Status`, `0x85c0=Okay`, `0x85c6=Fail`, `0x8609=ErrorCode`.
+The `User`/`Token` tags use a second XOR-int-array scheme
+(`FragmentINotificationSideChannel.aK/aG`).
 
 ### Related APK Assets
 
@@ -244,6 +264,10 @@ sudo python3 provisioning.py --auth OPEN CafeWiFi ""
 
 ## Remaining Work
 
+All three blockers are resolved and the tool is field-tested:
 1. ~~Recover client private key~~ — **DONE** (`Provisioning/ac14k_m.pem`)
 2. ~~Discover WiFi provisioning XML commands~~ — **DONE** (`APConnectionConfig`)
 3. ~~Implement `provisioning.py`~~ — **DONE**; field-tested 2026-08-15 on "Pasta"
+   (adapter rejoined network at 10.2.3.144, MAC 78:25:ad:10:8c:3c)
+
+No outstanding items.
