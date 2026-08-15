@@ -9,3 +9,7 @@ env/
 .env
 Prompt.txt
 samsung_ac/certs/
+
+# Provisioning: don't share the client private key or extracted APK contents
+Provisioning/ac14k_m.pem
+Provisioning/apk_extracted/

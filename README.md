@@ -176,6 +176,27 @@ sudo journalctl -u samsung-ac -n 100 --no-pager
 sudo journalctl -u samsung-ac -f
 ```
 
+## Re-Provisioning the Adapter (AP Mode)
+
+If the adapter needs to be moved to a different WiFi network, use the helper in
+`Provisioning/`:
+
+```bash
+cd Provisioning
+sudo python3 provisioning.py <SSID> <PASSWORD>
+```
+
+It connects to the adapter's temporary `SMARTAIRCON` AP, performs an mTLS
+handshake (Samsung client certificate), sends the `APConnectionConfig` command
+and verifies the adapter rejoins the target network.
+
+Hold the AP button on the adapter for ~5s first (the script waits up to 60s
+for the AP to appear). See `Provisioning/provisioning.md` for full details.
+
+> Note: the client private key `Provisioning/ac14k_m.pem` is not committed to
+> git. Obtain it from the Samsung app APK (see `Provisioning/ac14k_m.txt` for
+> the reference source) or keep a local copy.
+
 ## Not Included
 
 The original Samsung APK and any proprietary Samsung app assets are not included. This
